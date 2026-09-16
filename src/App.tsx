@@ -47,6 +47,26 @@ export function App() {
   const lastSampleTimeRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
   const timerIntervalRef = useRef<number | null>(null);
+  const analyzingIntervalRef = useRef<number | null>(null);
+
+  // Centralized interval and timer killer to guarantee no orphaned loops
+  const cleanupTimers = useCallback(() => {
+    if (timerIntervalRef.current !== null) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    if (analyzingIntervalRef.current !== null) {
+      clearInterval(analyzingIntervalRef.current);
+      analyzingIntervalRef.current = null;
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupTimers();
+    };
+  }, [cleanupTimers]);
 
   // Check if mobile / touch device
   useEffect(() => {
@@ -144,10 +164,7 @@ export function App() {
 
   // Finish observation and run analysis
   const finishObservation = useCallback(() => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
+    cleanupTimers();
 
     const t = telemetryRef.current;
     t.totalDurationMs = performance.now() - startTimeRef.current;
@@ -164,23 +181,27 @@ export function App() {
     ];
 
     let step = 0;
-    const interval = setInterval(() => {
+    analyzingIntervalRef.current = window.setInterval(() => {
       step++;
       if (step < messages.length) {
         setAnalyzingText(messages[step]);
         soundFx.tick(500 + step * 80);
       } else {
-        clearInterval(interval);
+        if (analyzingIntervalRef.current !== null) {
+          clearInterval(analyzingIntervalRef.current);
+          analyzingIntervalRef.current = null;
+        }
         const scores = computeScores(t);
         const finalResult = classifyArchetype(scores, t);
         setResult(finalResult);
         setStage('result');
       }
     }, 380);
-  }, []);
+  }, [cleanupTimers]);
 
   // Start observation mode
   const startObservation = () => {
+    cleanupTimers();
     soundFx.click();
     telemetryRef.current = {
       totalDistance: 0,
@@ -224,10 +245,13 @@ export function App() {
   };
 
   const handleReset = () => {
+    cleanupTimers();
+    soundFx.click();
     if (window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname);
     }
     setResult(null);
+    setTimeLeft(OBSERVATION_DURATION_SEC);
     setStage('landing');
   };
 
