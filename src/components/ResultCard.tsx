@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import confetti from 'canvas-confetti';
-import { Share2, Download, RefreshCw, Check, Zap, Target, Flame, Heart, Compass, AlertTriangle, ShieldCheck, Activity, Gauge, Navigation } from 'lucide-react';
+import { Share2, Download, RefreshCw, Check, Zap, Target, Flame, Heart, Compass, AlertTriangle, ShieldCheck, Activity, Gauge, Navigation, X } from 'lucide-react';
 import type { AnalysisResult } from '../types';
 import { soundFx } from '../shared/sound';
 import { encodeResultUrl } from '../engine/analyzer';
@@ -255,7 +255,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onReset }) => {
           style={{ backgroundColor: archetype.accentColor }}
         />
 
-        {/* Top Header info */}
+        {/* Top Header info & Quick In-Viewport Actions */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6 border-b border-white/10 pb-4">
           <div className="flex items-center gap-2">
             <span
@@ -273,8 +273,32 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onReset }) => {
             </span>
           </div>
 
-          <div className="text-xs font-mono text-slate-400">
-            {telemetry.isTouchMode ? '📱 Mobile Touch Assessment' : '🖱️ Optical Pointer Assessment'}
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:inline text-xs font-mono text-slate-400 mr-1">
+              {telemetry.isTouchMode ? '📱 Touch Mode' : '🖱️ Pointer Mode'}
+            </span>
+            <button
+              onClick={() => {
+                soundFx.click();
+                onReset();
+              }}
+              title="Test again / Re-calibrate"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-xs font-medium text-indigo-200 border border-indigo-500/30 hover:text-white transition-all active:scale-95 cursor-pointer shadow-sm"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Re-calibrate</span>
+            </button>
+            <button
+              onClick={() => {
+                soundFx.click();
+                onReset();
+              }}
+              aria-label="Back to home"
+              title="Back to home"
+              className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 transition-all active:scale-95 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
 

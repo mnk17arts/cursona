@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MousePointer2, Volume2, VolumeX, Sparkles, Move, Compass, Zap } from 'lucide-react';
+import { MousePointer2, Volume2, VolumeX, Sparkles, Move, Compass, Zap, RefreshCw } from 'lucide-react';
 import { CursorCanvas } from './components/CursorCanvas';
 import { TelemetryHUD } from './components/TelemetryHUD';
 import { ResultCard } from './components/ResultCard';
@@ -47,6 +47,26 @@ export function App() {
   const lastSampleTimeRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
   const timerIntervalRef = useRef<number | null>(null);
+  const analyzingIntervalRef = useRef<number | null>(null);
+
+  // Centralized interval and timer killer to guarantee no orphaned loops
+  const cleanupTimers = useCallback(() => {
+    if (timerIntervalRef.current !== null) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    if (analyzingIntervalRef.current !== null) {
+      clearInterval(analyzingIntervalRef.current);
+      analyzingIntervalRef.current = null;
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupTimers();
+    };
+  }, [cleanupTimers]);
 
   // Check if mobile / touch device
   useEffect(() => {
@@ -144,10 +164,7 @@ export function App() {
 
   // Finish observation and run analysis
   const finishObservation = useCallback(() => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
+    cleanupTimers();
 
     const t = telemetryRef.current;
     t.totalDurationMs = performance.now() - startTimeRef.current;
@@ -164,23 +181,27 @@ export function App() {
     ];
 
     let step = 0;
-    const interval = setInterval(() => {
+    analyzingIntervalRef.current = window.setInterval(() => {
       step++;
       if (step < messages.length) {
         setAnalyzingText(messages[step]);
         soundFx.tick(500 + step * 80);
       } else {
-        clearInterval(interval);
+        if (analyzingIntervalRef.current !== null) {
+          clearInterval(analyzingIntervalRef.current);
+          analyzingIntervalRef.current = null;
+        }
         const scores = computeScores(t);
         const finalResult = classifyArchetype(scores, t);
         setResult(finalResult);
         setStage('result');
       }
     }, 380);
-  }, []);
+  }, [cleanupTimers]);
 
   // Start observation mode
   const startObservation = () => {
+    cleanupTimers();
     soundFx.click();
     telemetryRef.current = {
       totalDistance: 0,
@@ -224,10 +245,13 @@ export function App() {
   };
 
   const handleReset = () => {
+    cleanupTimers();
+    soundFx.click();
     if (window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname);
     }
     setResult(null);
+    setTimeLeft(OBSERVATION_DURATION_SEC);
     setStage('landing');
   };
 
@@ -248,10 +272,23 @@ export function App() {
       {/* Top Navigation Bar */}
       <header className="relative z-30 flex items-center justify-between px-6 py-4 max-w-6xl w-full mx-auto">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-mono text-indigo-300">
+          <button
+            onClick={handleReset}
+            title="Return to Home"
+            className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono text-indigo-300 hover:text-white transition-all cursor-pointer"
+          >
             <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
             <span>CURSONA</span>
-          </div>
+          </button>
+          {stage === 'result' && (
+            <button
+              onClick={handleReset}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 hover:bg-indigo-500/30 text-xs font-mono text-indigo-200 border border-indigo-500/30 transition-all active:scale-95 cursor-pointer"
+            >
+              <RefreshCw className="w-3 h-3 text-indigo-400" />
+              <span>New Test</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
