@@ -238,7 +238,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#090a0f] bg-grid-pattern text-slate-100 flex flex-col justify-between relative overflow-hidden select-none">
+    <div className={`min-h-screen bg-[#090a0f] bg-grid-pattern text-slate-100 flex flex-col justify-between relative overflow-hidden select-none ${stage === 'observing' ? 'touch-none overscroll-none' : ''}`}>
       {/* Interactive 60fps Canvas Trail in background */}
       <CursorCanvas
         interactive={stage === 'landing' || stage === 'observing'}

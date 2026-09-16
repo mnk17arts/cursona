@@ -45,7 +45,6 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
   const lastSoundTimeRef = useRef<number>(0);
   const hueRef = useRef<number>(200);
 
-  // Set up Canvas and Global Event Listeners on WINDOW so it covers the ENTIRE viewport
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -61,13 +60,11 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
     resize();
     window.addEventListener('resize', resize);
 
-    // Global Pointer Move Listener
-    const onWindowPointerMove = (e: PointerEvent) => {
+    // Unified Movement Handler for both Mouse and Mobile Touch Swipes
+    const handleMove = (currentX: number, currentY: number) => {
       if (!interactive) return;
 
       const now = performance.now();
-      const currentX = e.clientX;
-      const currentY = e.clientY;
       currentPosRef.current = { x: currentX, y: currentY };
 
       let speed = 0;
@@ -90,11 +87,11 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
           lastAngleRef.current = currentAngle;
         }
 
-        // Sound triggers
-        if (speed > 1800 && now - lastSoundTimeRef.current > 280) {
+        // Sound triggers on speed bursts
+        if (speed > 1600 && now - lastSoundTimeRef.current > 260) {
           soundFx.swoosh();
           lastSoundTimeRef.current = now;
-        } else if (speed > 550 && now - lastSoundTimeRef.current > 100) {
+        } else if (speed > 450 && now - lastSoundTimeRef.current > 90) {
           soundFx.tick(Math.min(900, 420 + speed * 0.25));
           lastSoundTimeRef.current = now;
         }
@@ -103,7 +100,7 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
       lastPosRef.current = { x: currentX, y: currentY, time: now };
 
       // Cycle chromatic hue continuously
-      hueRef.current = (hueRef.current + (speed > 500 ? 4 : 1.5)) % 360;
+      hueRef.current = (hueRef.current + (speed > 500 ? 4.5 : 2)) % 360;
 
       // Add to trail
       trailRef.current.push({
@@ -115,22 +112,22 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
       });
 
       // Spawn vibrant particles based on movement
-      const sparkCount = speed > 1200 ? 4 : speed > 400 ? 2 : 1;
+      const sparkCount = speed > 1100 ? 4 : speed > 350 ? 2 : 1;
       for (let i = 0; i < sparkCount; i++) {
         const angle = Math.random() * Math.PI * 2;
-        const velocity = Math.random() * 2.5 + (speed > 1000 ? 2 : 0.6);
-        const pColor = `hsl(${hueRef.current + (Math.random() - 0.5) * 40}, 90%, 65%)`;
+        const velocity = Math.random() * 2.8 + (speed > 1000 ? 2.2 : 0.8);
+        const pColor = `hsl(${hueRef.current + (Math.random() - 0.5) * 40}, 92%, 65%)`;
 
         particlesRef.current.push({
           x: currentX + (Math.random() - 0.5) * 6,
           y: currentY + (Math.random() - 0.5) * 6,
           vx: Math.cos(angle) * velocity,
           vy: Math.sin(angle) * velocity,
-          size: Math.random() * 3.5 + 1.5,
+          size: Math.random() * 4 + 2,
           color: pColor,
           alpha: 1,
           life: 0,
-          maxLife: Math.floor(Math.random() * 28 + 16)
+          maxLife: Math.floor(Math.random() * 26 + 14)
         });
       }
 
@@ -144,31 +141,31 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
       });
     };
 
-    // Global Pointer Down (Click / Tap)
-    const onWindowPointerDown = (e: PointerEvent) => {
+    // Unified Down/Click Handler (tap or mouse down)
+    const handleDown = (clientX: number, clientY: number) => {
       if (!interactive) return;
       soundFx.click();
 
       // Spawn expanding shockwave ring
       ringsRef.current.push({
-        x: e.clientX,
-        y: e.clientY,
-        radius: 6,
-        maxRadius: 65,
-        alpha: 0.9,
+        x: clientX,
+        y: clientY,
+        radius: 8,
+        maxRadius: 75,
+        alpha: 0.95,
         color: `hsl(${hueRef.current}, 95%, 65%)`
       });
 
       // Spawn radial burst particles
-      for (let i = 0; i < 20; i++) {
-        const angle = (i / 20) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
-        const velocity = Math.random() * 4.5 + 2;
+      for (let i = 0; i < 22; i++) {
+        const angle = (i / 22) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+        const velocity = Math.random() * 5 + 2.5;
         particlesRef.current.push({
-          x: e.clientX,
-          y: e.clientY,
+          x: clientX,
+          y: clientY,
           vx: Math.cos(angle) * velocity,
           vy: Math.sin(angle) * velocity,
-          size: Math.random() * 4 + 2,
+          size: Math.random() * 4.5 + 2,
           color: `hsl(${(hueRef.current + i * 15) % 360}, 95%, 65%)`,
           alpha: 1,
           life: 0,
@@ -177,8 +174,8 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
       }
 
       onPointerData?.({
-        x: e.clientX,
-        y: e.clientY,
+        x: clientX,
+        y: clientY,
         speed: 0,
         angleDelta: 0,
         isClick: true,
@@ -186,23 +183,64 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
       });
     };
 
-    window.addEventListener('pointermove', onWindowPointerMove);
-    window.addEventListener('pointerdown', onWindowPointerDown);
+    // --- Native Touch Listeners (Guarantees smooth mobile swipe without scroll interference) ---
+    const onTouchMove = (e: TouchEvent) => {
+      if (!interactive) return;
+      if (e.touches.length > 0) {
+        // Prevent default browser scrolling so every finger swipe/drag is tracked!
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        const touch = e.touches[0];
+        handleMove(touch.clientX, touch.clientY);
+      }
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (!interactive) return;
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        lastPosRef.current = { x: touch.clientX, y: touch.clientY, time: performance.now() };
+        handleDown(touch.clientX, touch.clientY);
+      }
+    };
+
+    const onTouchEnd = () => {
+      lastPosRef.current = null;
+    };
+
+    // --- Standard Mouse / Desktop Pointer Listeners ---
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return; // Handled by native touch listeners
+      handleMove(e.clientX, e.clientY);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return; // Handled by native touch listeners
+      handleDown(e.clientX, e.clientY);
+    };
+
+    // Attach passive: false to touchmove so e.preventDefault() stops default browser scroll
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerdown', onPointerDown);
 
     // 60 FPS Render Loop
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 1. Soft glowing cursor spotlight aura around current pointer
+      // 1. Glowing spotlight aura around current pointer / touch point
       if (currentPosRef.current) {
         const { x, y } = currentPosRef.current;
-        const auraGrad = ctx.createRadialGradient(x, y, 0, x, y, 140);
-        auraGrad.addColorStop(0, `hsla(${hueRef.current}, 85%, 60%, 0.16)`);
-        auraGrad.addColorStop(0.5, `hsla(${hueRef.current}, 85%, 60%, 0.05)`);
+        const auraGrad = ctx.createRadialGradient(x, y, 0, x, y, 150);
+        auraGrad.addColorStop(0, `hsla(${hueRef.current}, 90%, 65%, 0.22)`);
+        auraGrad.addColorStop(0.5, `hsla(${hueRef.current}, 85%, 60%, 0.07)`);
         auraGrad.addColorStop(1, 'transparent');
         ctx.fillStyle = auraGrad;
         ctx.beginPath();
-        ctx.arc(x, y, 140, 0, Math.PI * 2);
+        ctx.arc(x, y, 150, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -210,7 +248,7 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
       const rings = ringsRef.current;
       for (let i = rings.length - 1; i >= 0; i--) {
         const r = rings[i];
-        r.radius += 2.8;
+        r.radius += 3.2;
         r.alpha = Math.max(0, 1 - r.radius / r.maxRadius);
 
         if (r.radius >= r.maxRadius) {
@@ -220,10 +258,10 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
 
         ctx.save();
         ctx.strokeStyle = r.color;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 3;
         ctx.globalAlpha = r.alpha;
         ctx.shadowColor = r.color;
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 14;
         ctx.beginPath();
         ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
         ctx.stroke();
@@ -234,7 +272,7 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
       const trail = trailRef.current;
       for (let i = trail.length - 1; i >= 0; i--) {
         trail[i].age += 1;
-        if (trail[i].age > 28) {
+        if (trail[i].age > 30) {
           trail.splice(i, 1);
         }
       }
@@ -244,18 +282,18 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
         for (let i = 1; i < trail.length; i++) {
           const p1 = trail[i - 1];
           const p2 = trail[i];
-          const factor = Math.max(0, 1 - p2.age / 28);
-          const alpha = factor * 0.85;
-          const width = Math.max(1.5, factor * 8);
+          const factor = Math.max(0, 1 - p2.age / 30);
+          const alpha = factor * 0.9;
+          const width = Math.max(2, factor * 9);
 
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
           ctx.lineTo(p2.x, p2.y);
-          ctx.strokeStyle = `hsla(${p2.hue}, 90%, 65%, ${alpha})`;
+          ctx.strokeStyle = `hsla(${p2.hue}, 95%, 65%, ${alpha})`;
           ctx.lineWidth = width;
           ctx.lineCap = 'round';
-          ctx.shadowColor = `hsl(${p2.hue}, 90%, 65%)`;
-          ctx.shadowBlur = 14;
+          ctx.shadowColor = `hsl(${p2.hue}, 95%, 65%)`;
+          ctx.shadowBlur = 16;
           ctx.stroke();
         }
         ctx.restore();
@@ -279,7 +317,7 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
         ctx.globalAlpha = p.alpha;
         ctx.fillStyle = p.color;
         ctx.shadowColor = p.color;
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 14;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * (1 - p.life / p.maxLife), 0, Math.PI * 2);
         ctx.fill();
@@ -294,15 +332,18 @@ export const CursorCanvas: React.FC<CursorCanvasProps> = ({ interactive, onPoint
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
-      window.removeEventListener('pointermove', onWindowPointerMove);
-      window.removeEventListener('pointerdown', onWindowPointerDown);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerdown', onPointerDown);
     };
   }, [interactive, onPointerData]);
 
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-[25] block w-full h-full"
+      className="fixed inset-0 pointer-events-none z-[25] block w-full h-full touch-none"
     />
   );
 };
